@@ -190,8 +190,12 @@ function buildOrder(saved) {
   // look like it was going to somebody who was already done.
   const done = new Set((state.confirmed || []).concat(state.already || [])
     .map(c => String(c.uid || c.player)));
+  // The published roster carries every member with their online flag, so a saved
+  // order naming someone who is offline right now still shows a name and power.
+  // Older views only published the online list; keep reading that as a fallback.
+  const roster = (state.roster && state.roster.length) ? state.roster : (state.online || []);
   const byUid = new Map();
-  (state.online || []).forEach(p => {
+  roster.forEach(p => {
     if (!done.has(String(p.uid))) byUid.set(String(p.uid), Object.assign({}, p));
   });
   const out = [];
@@ -199,7 +203,7 @@ function buildOrder(saved) {
     if (done.has(String(uid))) return;
     const p = byUid.get(String(uid));
     if (p) { out.push(p); byUid.delete(String(uid)); }
-    else out.push({ uid: String(uid), name: "(not online)", power: null, online: false });
+    else out.push({ uid: String(uid), name: "(left the alliance)", power: null, online: false });
   });
   [...byUid.values()]
     .sort((a, b) => (b.power || 0) - (a.power || 0) || String(a.uid).localeCompare(String(b.uid)))
