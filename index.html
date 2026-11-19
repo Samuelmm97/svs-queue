@@ -45,6 +45,12 @@
                   border-radius:7px; padding:6px 9px; font-size:13px; }
   .flash { font-size:12px; color:var(--ok); }
   .err { color:var(--bad); font-size:12px; }
+  .grip { cursor: grab; color: #6b7280; font-size: 15px; line-height: 1;
+    padding: 0 6px; text-align: center; touch-action: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .grip:active { cursor: grabbing; }
+  tr.dragging { opacity: .45; background: rgba(57,130,198,.12); }
+  tr.dragging .grip { color: #3982c6; }
 </style>
 </head>
 <body>
@@ -68,13 +74,14 @@
     <h2>Queue order <span class="muted" id="orderhint"></span></h2>
     <p class="sub" style="margin:0 0 10px">
       Anyone with the link can edit, officers included — every save records who made it.
-      Online players first. Reorder with the arrows, drop anyone who should not be
-      offered, then Save. The Companion follows this order and falls back to
+      Online players first. Drag the &#10303; handle to move somebody — it works with a
+      finger on a phone — or use the arrows. Drop anyone who should not be offered,
+      then Save. The Companion follows this order and falls back to
       highest power when the list runs out. Players who already teleported are not in
       this list — they sit under Confirmed and Already teleported.
     </p>
     <table>
-      <thead><tr><th style="width:38px">#</th><th>Player</th><th class="num">Power</th>
+      <thead><tr><th style="width:30px"></th><th style="width:38px">#</th><th>Player</th><th class="num">Power</th>
       <th style="width:80px">Status</th><th style="width:180px"></th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
@@ -217,7 +224,8 @@ function render() {
     const st = isConf ? '<span class="tag on">confirmed</span>'
       : p.online === false ? '<span class="tag off">offline</span>'
       : '<span class="tag on">online</span>';
-    return "<tr><td class='muted'>" + (i + 1) + "</td>" +
+    return "<tr data-uid='" + esc(p.uid) + "'><td class='grip' title='drag to reorder'>&#10303;</td>" +
+      "<td class='muted'>" + (i + 1) + "</td>" +
       "<td>" + esc(p.name) + "</td>" +
       "<td class='num'>" + fmt(p.power) + "</td>" +
       "<td>" + st + "</td>" +
@@ -229,7 +237,7 @@ function render() {
         "<button data-already='" + esc(p.uid) + "' title='mark already teleported'>&rarr;tp</button>" +
       "</span></td></tr>";
   }).join("");
-  $("rows").innerHTML = rows || "<tr><td colspan='5' class='muted'>No roster published yet.</td></tr>";
+  $("rows").innerHTML = rows || "<tr><td colspan='6' class='muted'>No roster published yet.</td></tr>";
   $("orderhint").textContent = dirty ? "(unsaved changes)" : "";
 
   $("conf").innerHTML = (state.confirmed || []).map(c =>
@@ -244,6 +252,51 @@ function render() {
     "</td><td><button data-reopen='" + esc(c.uid || c.player) + "'>Reopen</button></td></tr>").join("")
     || "<tr><td colspan='4' class='muted'>None.</td></tr>";
 }
+
+/* Drag to reorder. Pointer events cover mouse and finger alike; the grip sets
+   touch-action:none so the page doesn't scroll out from under the drag. */
+let dragRow = null;
+
+function rowAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const tr = el && el.closest ? el.closest("tr") : null;
+  return tr && tr.parentElement === $("rows") ? tr : null;
+}
+
+function onDragMove(e) {
+  if (!dragRow) return;
+  if (e.clientY < 90) window.scrollBy(0, -14);
+  else if (e.clientY > window.innerHeight - 90) window.scrollBy(0, 14);
+  const over = rowAt(e.clientX, e.clientY);
+  if (!over || over === dragRow) return;
+  const rows = Array.from($("rows").children);
+  const from = rows.indexOf(dragRow), to = rows.indexOf(over);
+  if (to < from) $("rows").insertBefore(dragRow, over);
+  else $("rows").insertBefore(dragRow, over.nextSibling);
+}
+
+function onDragEnd() {
+  window.removeEventListener("pointermove", onDragMove);
+  if (!dragRow) return;
+  dragRow.classList.remove("dragging");
+  dragRow = null;
+  const byUid = new Map(order.map(p => [String(p.uid), p]));
+  const seq = Array.from($("rows").children)
+    .map(tr => byUid.get(String(tr.dataset.uid))).filter(Boolean);
+  if (seq.length === order.length) { order = seq; dirty = true; }
+  render();
+}
+
+$("rows").addEventListener("pointerdown", e => {
+  const grip = e.target.closest(".grip");
+  if (!grip || e.button > 0) return;
+  e.preventDefault();
+  dragRow = grip.closest("tr");
+  dragRow.classList.add("dragging");
+  window.addEventListener("pointermove", onDragMove);
+  window.addEventListener("pointerup", onDragEnd, { once: true });
+  window.addEventListener("pointercancel", onDragEnd, { once: true });
+});
 
 function move(i, j) {
   if (j < 0 || j >= order.length) return;
