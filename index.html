@@ -245,7 +245,7 @@ function render() {
   const conf = new Set((state.confirmed || []).map(c => String(c.uid || c.player)));
   const rows = order.map((p, i) => {
     const isConf = conf.has(String(p.uid));
-    const st = isConf ? '<span class="tag on">confirmed</span>'
+    const st = isConf ? '<span class="tag on">ready</span>'
       : p.online === false ? '<span class="tag off">offline</span>'
       : '<span class="tag on">online</span>';
     return "<tr data-uid='" + esc(p.uid) + "'><td class='grip' title='drag to reorder'>&#10303;</td>" +
