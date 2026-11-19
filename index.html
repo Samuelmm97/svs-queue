@@ -224,6 +224,10 @@ function render() {
   if (age != null && age > 180) warn = "The Companion stopped publishing " + age + "s ago — this page is out of date.";
   else if (blind > 180) warn = "The Companion cannot reach the game (" + blind + "s) — offers are not being read or posted.";
   else if (h.fails > 0) warn = "The Companion failed its last " + h.fails + " read" + (h.fails === 1 ? "" : "s") + " of the game.";
+  // The queue only works if the game client holds alliance chat; a client that never
+  // opened it cannot see /tp at all, so say so instead of looking idle.
+  else if (h.chat_cached === 0) warn = "The Companion cannot see alliance chat: open the alliance chat in Last Z once, then /tp will be read.";
+  else if (h.last_tp) warn = "Last /tp read " + (age != null ? "" : "") + new Date(h.last_tp * 1000).toLocaleTimeString() + " · " + (h.events || 0) + " chat lines read.";
   const hb = $("health");
   if (warn) { hb.textContent = warn; hb.hidden = false; } else { hb.hidden = true; hb.textContent = ""; }
 
