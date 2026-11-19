@@ -45,6 +45,8 @@
                   border-radius:7px; padding:6px 9px; font-size:13px; }
   .flash { font-size:12px; color:var(--ok); }
   .err { color:var(--bad); font-size:12px; }
+  .banner { border: 1px solid #7f1d1d; background: #2a1215; color: #ffb4b4;
+    padding: 10px 12px; border-radius: 8px; margin: 0 0 14px; font-size: 14px; }
   .grip { cursor: grab; color: #6b7280; font-size: 15px; line-height: 1;
     padding: 0 6px; text-align: center; touch-action: none;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -64,6 +66,7 @@
 </header>
 
 <main>
+  <div id="health" class="banner" hidden></div>
   <section>
     <h2>Current offer</h2>
     <div id="offer" class="offer"><span class="muted">Nothing pending.</span></div>
@@ -206,6 +209,18 @@ function buildOrder(saved) {
 }
 
 function render() {
+  // A controller that is running but cannot read the game looks healthy from the
+  // outside, so say it plainly instead of showing a stale roster as if it were live.
+  const h = state.health || {};
+  const age = state.updated ? Math.round(Date.now() / 1000 - state.updated) : null;
+  const blind = (h.ok_at ? Math.round(Date.now() / 1000 - h.ok_at) : 0);
+  let warn = "";
+  if (age != null && age > 180) warn = "The Companion stopped publishing " + age + "s ago — this page is out of date.";
+  else if (blind > 180) warn = "The Companion cannot reach the game (" + blind + "s) — offers are not being read or posted.";
+  else if (h.fails > 0) warn = "The Companion failed its last " + h.fails + " read" + (h.fails === 1 ? "" : "s") + " of the game.";
+  const hb = $("health");
+  if (warn) { hb.textContent = warn; hb.hidden = false; } else { hb.hidden = true; hb.textContent = ""; }
+
   const o = state.offer;
   if (o && o.name) {
     const left = o.deadline ? Math.max(0, Math.round(o.deadline - Date.now() / 1000)) : null;
