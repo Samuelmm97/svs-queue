@@ -61,7 +61,6 @@
   <span class="grow"></span>
   <span class="sub" id="lastedit"></span>
   <button id="refresh" class="ghost">Refresh</button>
-  <button id="save" class="primary">Save order</button>
 </header>
 
 <main>
@@ -76,7 +75,7 @@
       Anyone with the link can edit, officers included — every save records who made it.
       Online players first. Drag the &#10303; handle to move somebody — it works with a
       finger on a phone — or use the arrows. Drop anyone who should not be offered,
-      then Save. The Companion follows this order and falls back to
+      and it saves itself. The Companion follows this order and falls back to
       highest power when the list runs out. Players who already teleported are not in
       this list — they sit under Confirmed and Already teleported.
     </p>
@@ -285,6 +284,7 @@ function onDragEnd() {
     .map(tr => byUid.get(String(tr.dataset.uid))).filter(Boolean);
   if (seq.length === order.length) { order = seq; dirty = true; }
   render();
+  saveSoon();
 }
 
 $("rows").addEventListener("pointerdown", e => {
@@ -304,6 +304,7 @@ function move(i, j) {
   order.splice(j, 0, x);
   dirty = true;
   render();
+  saveSoon();
 }
 
 $("ally").onchange = () => {
@@ -320,12 +321,12 @@ document.addEventListener("click", e => {
   if (up != null) move(Number(up), Number(up) - 1);
   if (down != null) move(Number(down), Number(down) + 1);
   if (top != null) move(Number(top), 0);
-  if (drop != null) { order.splice(Number(drop), 1); dirty = true; render(); }
+  if (drop != null) { order.splice(Number(drop), 1); dirty = true; render(); saveSoon(); }
   if (b.dataset.reopen) reopen(b.dataset.reopen);
   if (b.dataset.already) markAlready(b.dataset.already);
 });
 
-$("reset").onclick = () => { buildOrder([]); dirty = true; render(); };
+$("reset").onclick = () => { buildOrder([]); dirty = true; render(); saveSoon(); };
 $("refresh").onclick = load;
 
 /* Every write merges into the shared record by alliance id, so two alliances (or
@@ -349,27 +350,42 @@ $("clear").onclick = async () => {
   } catch (e) { $("msg").className = "err"; $("msg").textContent = "failed: " + e.message; }
 };
 
-$("save").onclick = async () => {
-  let name = ($("editor").value || "").trim();
-  if (!name) {
-    name = (prompt("Your name (shown to the alliance):") || "").trim();
-    if (!name) return;
-    $("editor").value = name;
-  }
-  localStorage.setItem(K_BY, name.slice(0, 24));
+/* The order saves itself: a change lands about a second after you stop moving
+   somebody, so nobody has to remember a Save button. The name box only decides the
+   attribution, and an empty box falls back to the last name used. */
+function editorName() {
+  const typed = ($("editor").value || "").trim();
+  if (typed) { localStorage.setItem(K_BY, typed.slice(0, 24)); return typed.slice(0, 24); }
+  return (localStorage.getItem(K_BY) || "unnamed").slice(0, 24);
+}
+
+let saveTimer = null;
+
+function saveSoon() {
+  if (!dirty) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveOrder().catch(() => {}); }, 900);
+}
+
+async function saveOrder() {
+  clearTimeout(saveTimer);
+  if (!dirty) return;
+  const name = editorName();
   $("msg").className = "flash";
   $("msg").textContent = "saving…";
   try {
     await put(K_ORDER, { order: order.filter(p => p.online !== false).map(p => String(p.uid)),
-                         by: name.slice(0, 24), at: Math.floor(Date.now() / 1000) });
-    $("msg").textContent = "saved";
+                         by: name, at: Math.floor(Date.now() / 1000) });
     dirty = false;
+    $("msg").textContent = "saved" + (name === "unnamed" ? "" : " · " + name);
     load();
   } catch (e) {
     $("msg").className = "err";
     $("msg").textContent = "save failed: " + e.message;
   }
-};
+}
+
+$("editor").addEventListener("change", () => { if (dirty) saveSoon(); });
 
 async function markAlready(uid) {
   const row = order.find(p => String(p.uid) === String(uid)) || {};
