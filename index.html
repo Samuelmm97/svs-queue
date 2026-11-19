@@ -70,7 +70,8 @@
       Anyone with the link can edit, officers included — every save records who made it.
       Online players first. Reorder with the arrows, drop anyone who should not be
       offered, then Save. The Companion follows this order and falls back to
-      highest power when the list runs out.
+      highest power when the list runs out. Players who already teleported are not in
+      this list — they sit under Confirmed and Already teleported.
     </p>
     <table>
       <thead><tr><th style="width:38px">#</th><th>Player</th><th class="num">Power</th>
@@ -175,10 +176,18 @@ async function load() {
 }
 
 function buildOrder(saved) {
+  // Players who already have their teleport are not in the queue: they appear under
+  // Confirmed and Already teleported. Leaving them in the list made the next offer
+  // look like it was going to somebody who was already done.
+  const done = new Set((state.confirmed || []).concat(state.already || [])
+    .map(c => String(c.uid || c.player)));
   const byUid = new Map();
-  (state.online || []).forEach(p => byUid.set(String(p.uid), Object.assign({}, p)));
+  (state.online || []).forEach(p => {
+    if (!done.has(String(p.uid))) byUid.set(String(p.uid), Object.assign({}, p));
+  });
   const out = [];
   (saved || []).forEach(uid => {
+    if (done.has(String(uid))) return;
     const p = byUid.get(String(uid));
     if (p) { out.push(p); byUid.delete(String(uid)); }
     else out.push({ uid: String(uid), name: "(not online)", power: null, online: false });
