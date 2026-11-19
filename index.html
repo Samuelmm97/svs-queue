@@ -127,6 +127,7 @@ let alliances = {};
 let current = "";
 let state = { online: [], confirmed: [], already: [], officers: [], offer: null, updated: 0 };
 let order = [];
+let offlineTail = [];
 let dirty = false;
 
 const $ = id => document.getElementById(id);
@@ -143,7 +144,10 @@ function timeAgo(d) {
 
 function label(id, view) {
   const online = (view && view.online ? view.online.length : 0);
-  return "alliance " + String(id).slice(0, 6) + " · " + online + " online";
+  const tag = String((view && view.tag) || "").trim();
+  // The game's own alliance abbreviation (4NG, ...), not an opaque id: a leader has
+  // to recognise their alliance in the picker at a glance.
+  return (tag || ("alliance " + String(id).slice(0, 6))) + " · " + online + " online";
 }
 
 async function load() {
@@ -185,17 +189,14 @@ async function load() {
 }
 
 function buildOrder(saved) {
-  // Players who already have their teleport are not in the queue: they appear under
-  // Confirmed and Already teleported. Leaving them in the list made the next offer
-  // look like it was going to somebody who was already done.
+  // The queue is who to notify now: only players the roster says are online. A saved
+  // order only reorders them; a uid that is offline or already done changes nothing.
+  // Their relative position is kept in offlineTail so a save does not forget where
+  // they were when they come back online.
   const done = new Set((state.confirmed || []).concat(state.already || [])
     .map(c => String(c.uid || c.player)));
-  // The published roster carries every member with their online flag, so a saved
-  // order naming someone who is offline right now still shows a name and power.
-  // Older views only published the online list; keep reading that as a fallback.
-  const roster = (state.roster && state.roster.length) ? state.roster : (state.online || []);
   const byUid = new Map();
-  roster.forEach(p => {
+  (state.online || []).forEach(p => {
     if (!done.has(String(p.uid))) byUid.set(String(p.uid), Object.assign({}, p));
   });
   const out = [];
@@ -203,11 +204,12 @@ function buildOrder(saved) {
     if (done.has(String(uid))) return;
     const p = byUid.get(String(uid));
     if (p) { out.push(p); byUid.delete(String(uid)); }
-    else out.push({ uid: String(uid), name: "(left the alliance)", power: null, online: false });
   });
   [...byUid.values()]
     .sort((a, b) => (b.power || 0) - (a.power || 0) || String(a.uid).localeCompare(String(b.uid)))
     .forEach(p => out.push(p));
+  const shown = new Set(out.map(p => String(p.uid)));
+  offlineTail = (saved || []).filter(uid => !shown.has(String(uid)) && !done.has(String(uid)));
   order = out;
   dirty = false;
 }
