@@ -53,6 +53,7 @@
   <span class="sub" id="stamp">loading…</span>
   <span class="grow"></span>
   <span class="sub" id="who"></span>
+  <span class="sub" id="lastedit"></span>
   <button id="refresh" class="ghost">Refresh</button>
   <button id="save" class="primary">Save order</button>
 </header>
@@ -76,6 +77,8 @@
       <tbody id="rows"></tbody>
     </table>
     <div class="row" style="margin-top:12px">
+      <input id="editor" list="officers" placeholder="your name" style="width:180px">
+      <datalist id="officers"></datalist>
       <button id="reset">Reset to power order</button>
       <button id="clear">Clear override</button>
       <span class="grow"></span>
@@ -122,8 +125,14 @@ async function load() {
     const data = await r.json();
     state = Object.assign(state, data[K_STATE] || {});
     const saved = data[K_ORDER] || {};
-    $("who").textContent = data[K_BY] ? "leader: " + data[K_BY] : "";
     buildOrder(saved.order || []);
+    const list = $("officers");
+    list.innerHTML = (state.officers || []).map(o =>
+      '<option value="' + esc(o.name) + '"></option>').join("");
+    $("editor").value = localStorage.getItem(K_BY) || "";
+    $("lastedit").textContent = saved.by
+      ? "last edit by " + saved.by + (saved.at ? " \u00b7 " + timeAgo(new Date(saved.at * 1000)) : "")
+      : "";
     render();
     const when = state.updated ? new Date(state.updated * 1000) : null;
     $("stamp").textContent = when ? "state " + timeAgo(when) : "no state yet";
@@ -228,11 +237,16 @@ $("clear").onclick = async () => {
   await save({ order: [], cleared: true });
 };
 $("save").onclick = async () => {
-  const name = prompt("Your name (shown to the alliance):", localStorage.getItem(K_BY) || "");
-  if (name == null) return;
-  localStorage.setItem(K_BY, name.trim().slice(0, 24));
+  let name = ($("editor").value || "").trim();
+  if (!name) {
+    name = prompt("Your name (shown to the alliance):") || "";
+    name = name.trim();
+    if (!name) return;
+    $("editor").value = name;
+  }
+  localStorage.setItem(K_BY, name.slice(0, 24));
   await save({ order: order.filter(p => p.online !== false).map(p => String(p.uid)),
-               by: name.trim().slice(0, 24) });
+               by: name.slice(0, 24) });
 };
 
 async function reopen(uid) {
