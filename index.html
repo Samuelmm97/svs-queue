@@ -182,10 +182,14 @@ async function load() {
     $("lastedit").textContent = manual.length
       ? "manual order by " + mine.by + (mine.at ? " · " + timeAgo(new Date(mine.at * 1000)) : "")
       : (mine.order && mine.order.length ? "ignoring an unattributed drag · power order" : "");
+    // roster_at is when the numbers last actually changed, not when we last read them:
+    // the game only refreshes its alliance table when the roster is opened in game, so a
+    // reading that has not moved for a while means the client's own data is behind.
     const read = state.roster_at ? new Date(state.roster_at * 1000) : null;
-    const behind = read ? (Date.now() - read.getTime()) > 5 * 60 * 1000 : false;
+    const behind = read ? (Date.now() - read.getTime()) > 10 * 60 * 1000 : false;
     $("stamp").textContent = read
-      ? "roster read " + timeAgo(read) + (behind ? " · open the roster in game to refresh" : "")
+      ? (behind ? "roster unchanged for " + timeAgo(read) + " · open the roster in game to refresh"
+                : "roster synced " + timeAgo(read))
       : (state.updated ? "roster " + timeAgo(new Date(state.updated * 1000)) : "");
     render();
   } catch (e) {
