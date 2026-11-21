@@ -171,15 +171,22 @@ async function load() {
       esc(label(id, alliances[id])) + "</option>").join("");
     state = alliances[current] || state;
     const mine = (record[K_ORDER] || {})[current] || {};
-    buildOrder(mine.order || []);
+    // An order attributed to nobody is an accidental drag, not a decision. Honouring it
+    // froze whatever the page happened to be showing (a half-loaded roster) as the queue's
+    // order, which is how the list came to look unsorted by power.
+    const manual = mine.order && mine.by && mine.by !== "unnamed" ? mine.order : [];
+    buildOrder(manual);
     $("officers").innerHTML = (state.officers || []).map(o =>
       '<option value="' + esc(o.name) + '"></option>').join("");
     $("editor").value = localStorage.getItem(K_BY) || "";
-    $("lastedit").textContent = mine.by
-      ? "last edit by " + mine.by + (mine.at ? " · " + timeAgo(new Date(mine.at * 1000)) : "")
-      : "";
-    const when = state.updated ? new Date(state.updated * 1000) : null;
-    $("stamp").textContent = when ? "roster " + timeAgo(when) : "";
+    $("lastedit").textContent = manual.length
+      ? "manual order by " + mine.by + (mine.at ? " · " + timeAgo(new Date(mine.at * 1000)) : "")
+      : (mine.order && mine.order.length ? "ignoring an unattributed drag · power order" : "");
+    const read = state.roster_at ? new Date(state.roster_at * 1000) : null;
+    const behind = read ? (Date.now() - read.getTime()) > 5 * 60 * 1000 : false;
+    $("stamp").textContent = read
+      ? "roster read " + timeAgo(read) + (behind ? " · open the roster in game to refresh" : "")
+      : (state.updated ? "roster " + timeAgo(new Date(state.updated * 1000)) : "");
     render();
   } catch (e) {
     $("stamp").textContent = "could not read the shared store";
